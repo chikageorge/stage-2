@@ -161,9 +161,9 @@ docker compose up -d
 ### Step 3: Verify everything
 | Component | URL | Description |
 |------------|-----|-------------|
-| Blue | http://localhost:8081/version | Direct access to Blue |
-| Green | http://localhost:8082/version | Direct access to Green |
-| Nginx | http://localhost:8080/version | Routed via Nginx (active pool) |
+| Blue | http://35.176.120.145:8081/version | Direct access to Blue |
+| Green | http://35.176.120.145:8082/version | Direct access to Green |
+| Nginx | http://35.176.120.145:8080/version | Routed via Nginx (active pool) |
 
 You should see JSON output with:
 ```json
@@ -229,6 +229,6 @@ docker compose down
 ---
 
 ##  Author
-**Name:** _Your Full Name_  
-**Slack Display Name:** _Your Slack Name_  
+**Name:** GEORGE Chika Oluwasegun 
+**Slack Display Name:** genofwar 
 **Task:** DevOps Stage 2 — Blue/Green Deployment with Nginx
