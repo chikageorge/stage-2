@@ -1,80 +1,24 @@
 #!/usr/bin/env bash
-set -euo pipefail
-POOL="${1:-}"
-if [ -z "$POOL" ]; then
-  echo "Usage: $0 <blue|green>"
-  exit 1
-fi
-if [ "$POOL" != "blue" ] && [ "$POOL" != "green" ]; then
-  echo "Invalid pool: $POOL"
-  exit 2
-fi
+set -e
 
-OUT="nginx/nginx.conf"
-if [ "$POOL" = "green" ]; then
-  cat > "$OUT" <<'EOF'
-upstream backend_pool {
-    server app_green:8082 max_fails=1 fail_timeout=2s;
-    server app_blue:8081 backup;
-}
+# Load current ACTIVE_POOL from .env
+ACTIVE_POOL=$(grep '^ACTIVE_POOL=' .env | cut -d '=' -f2)
 
-server {
-    listen 80;
-    server_name _;
-    client_body_timeout 5s;
-    client_header_timeout 5s;
-    send_timeout 10s;
-    location / {
-        proxy_pass http://backend_pool;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_connect_timeout 2s;
-        proxy_send_timeout 5s;
-        proxy_read_timeout 7s;
-        proxy_next_upstream error timeout http_500 http_502 http_503 http_504;
-        proxy_next_upstream_tries 2;
-        proxy_next_upstream_timeout 10s;
-        proxy_buffering off;
-    }
-}
-EOF
+# Determine next pool
+if [ "$ACTIVE_POOL" = "blue" ]; then
+    NEW_POOL="green"
 else
-  cat > "$OUT" <<'EOF'
-upstream backend_pool {
-    server app_blue:8081 max_fails=1 fail_timeout=2s;
-    server app_green:8082 backup;
-}
-
-server {
-    listen 80;
-    server_name _;
-    client_body_timeout 5s;
-    client_header_timeout 5s;
-    send_timeout 10s;
-    location / {
-        proxy_pass http://backend_pool;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_connect_timeout 2s;
-        proxy_send_timeout 5s;
-        proxy_read_timeout 7s;
-        proxy_next_upstream error timeout http_500 http_502 http_503 http_504;
-        proxy_next_upstream_tries 2;
-        proxy_next_upstream_timeout 10s;
-        proxy_buffering off;
-    }
-}
-EOF
+    NEW_POOL="blue"
 fi
 
-echo "Switched active pool to: $POOL"
-docker compose up -d nginx >/dev/null 2>&1 || true
-sleep 1
-if docker ps --format '{{.Names}}' | grep -q '^nginx$'; then
-  docker exec nginx nginx -t && docker exec nginx nginx -s reload
-  echo "nginx reloaded successfully."
-fi
+# Update the .env file
+sed -i "s/^ACTIVE_POOL=.*/ACTIVE_POOL=${NEW_POOL}/" .env
+echo "Switched ACTIVE_POOL to ${NEW_POOL}"
+
+# Re-render Nginx config inside the container using updated environment
+docker exec nginx sh -c "envsubst '\$ACTIVE_POOL \$PORT' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf"
+
+# Reload Nginx to apply the new configuration
+docker exec nginx nginx -s reload
+
+echo "Nginx configuration reloaded. Now routing traffic to ${NEW_POOL}."
