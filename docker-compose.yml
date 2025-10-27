@@ -13,28 +13,33 @@ services:
       - app_green
     networks:
       - bg_net
+    environment:
+      ACTIVE_POOL: $(ACTIVE_POOL}
+      PORT: ${PORT}
+    restart: always
+    
 
   app_blue:
-    image: yimikaade/wonderful:devops-stage-two
+    image: ${BLUE_IMAGE}
     container_name: app_blue
     environment:
       - RELEASE_ID=${RELEASE_ID_BLUE}
       - APP_POOL=blue
-      - PORT=${PORT_BLUE:-8081}
+      - PORT=${PORT}
     ports:
-      - "8081:8081"
+      - "8081:${PORT}"
     networks:
       - bg_net
 
   app_green:
-    image: yimikaade/wonderful:devops-stage-two
+    image: ${GREEN_IMAGE}
     container_name: app_green
     environment:
       - RELEASE_ID=${RELEASE_ID_GREEN}
       - APP_POOL=green
-      - PORT=${PORT_GREEN:-8082}
+      - PORT=${PORT}
     ports:
-      - "8082:8082"
+      - "8082:${PORT}"
     networks:
       - bg_net
 
