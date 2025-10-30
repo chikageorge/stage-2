@@ -34,11 +34,11 @@ This repository extends the Stage-2 Blue/Green deployment by adding operational 
 ## Testing alerts
 - **Failover alert**: trigger chaos on the active app:
   ```bash
-  curl -X POST "http://<HOST>:8081/chaos/start?mode=error"
+  curl -X POST "http://35.176.120.145:8081/chaos/start?mode=error"
   ```
   Watch Slack for a failover alert, then stop chaos:
   ```bash
-  curl -X POST "http://<HOST>:8081/chaos/stop"
+  curl -X POST "http://35.176.120.145:8081/chaos/stop"
   ```
 
 - **Error-rate alert**: run many requests to trigger 5xx and exceed threshold:
