@@ -1,69 +1,63 @@
-version: "3.8"
+version: "3.9"
+
+volumes:
+  nginx_logs:
 
 services:
-  nginx:
-    image: nginx:stable
-    container_name: nginx
-    ports:
-      - "8080:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - nginx_logs:/var/log/nginx   # share logs with watcher
-    depends_on:
-      - app_blue
-      - app_green
-    networks:
-      - bg_net
-
   app_blue:
     image: ${BLUE_IMAGE}
     container_name: app_blue
+    env_file:
+      - .env
     environment:
       - RELEASE_ID=${RELEASE_ID_BLUE}
       - APP_POOL=blue
-      - PORT=${PORT_BLUE:-8081}
     ports:
-      - "8081:8081"
-    networks:
-      - bg_net
+      - "8081:80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/version"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
 
   app_green:
     image: ${GREEN_IMAGE}
     container_name: app_green
+    env_file:
+      - .env
     environment:
       - RELEASE_ID=${RELEASE_ID_GREEN}
       - APP_POOL=green
-      - PORT=${PORT_GREEN:-8082}
     ports:
-      - "8082:8082"
-    networks:
-      - bg_net
-
-  alert_watcher:
-    build:
-      context: ./watcher
-      dockerfile: Dockerfile
-    container_name: alert_watcher
-    environment:
-      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
-      - ERROR_RATE_THRESHOLD=${ERROR_RATE_THRESHOLD}
-      - WINDOW_SIZE=${WINDOW_SIZE}
-      - ALERT_COOLDOWN_SEC=${ALERT_COOLDOWN_SEC}
-      - ACTIVE_POOL=${ACTIVE_POOL}
-      - MAINTENANCE_MODE=${MAINTENANCE_MODE:-false}
-    volumes:
-      - nginx_logs:/var/log/nginx:ro
-    networks:
-      - bg_net
-    depends_on:
-      - nginx
-      - app_blue
-      - app_green
+      - "8082:80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/version"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
     restart: unless-stopped
 
-networks:
-  bg_net:
-    driver: bridge
+  nginx:
+    image: nginx:stable-alpine
+    container_name: nginx
+    depends_on:
+      - app_blue
+      - app_green
+    ports:
+      - "${PORT:-8080}:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - nginx_logs:/var/log/nginx
+    environment:
+      - ACTIVE_POOL=${ACTIVE_POOL}
+    restart: unless-stopped
 
-volumes:
-  nginx_logs:
+  alert_watcher:
+    build: ./watcher
+    container_name: alert_watcher
+    env_file:
+      - .env
+    volumes:
+      - nginx_logs:/var/log/nginx
+    restart: unless-stopped
