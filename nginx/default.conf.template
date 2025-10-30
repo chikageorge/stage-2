@@ -1,44 +1,63 @@
-# /etc/nginx/templates/default.conf.template
+# nginx/nginx.conf.template
+user  nginx;
+worker_processes  auto;
+error_log  /var/log/nginx/error.log warn;
+pid        /var/run/nginx.pid;
 
-# Dynamic upstream definition
-upstream backend {
-    zone backend 64k;
-
-    # When ACTIVE_POOL=blue
-    server app_blue:${PORT} max_fails=2 fail_timeout=5s;
-    server app_green:${PORT} backup;
-
-    # When ACTIVE_POOL=green
-    # The toggle.sh or switch_pool.sh script will swap this order automatically
+events {
+    worker_connections 1024;
 }
 
-# HTTP server block
-server {
-    listen 80;
+http {
+    # custom log format - include X-App-Pool and X-Release-Id from upstream
+    log_format bg_access '$remote_addr - $remote_user [$time_local] '
+                        '"$request" $status $body_bytes_sent '
+                        '"$http_referer" "$http_user_agent" '
+                        'pool="$upstream_http_x_app_pool" '
+                        'release="$upstream_http_x_release_id" '
+                        'upstream_status="$upstream_status" '
+                        'upstream_addr="$upstream_addr" '
+                        'request_time="$request_time" '
+                        'upstream_response_time="$upstream_response_time"';
 
-    # Health check endpoint
-    location /healthz {
-        access_log off;
-        return 200 'healthy';
+    access_log /var/log/nginx/access.log bg_access;
+
+    upstream backend_pool {
+        server app_blue:8081 max_fails=1 fail_timeout=2s;
+        server app_green:8082 backup;
     }
 
-    # Main proxy configuration
-    location / {
-        proxy_pass http://backend;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+    server {
+        listen 80;
+        server_name _;
 
-        # Forward application headers
-        proxy_pass_header X-App-Pool;
-        proxy_pass_header X-Release-Id;
+        client_body_timeout 5s;
+        client_header_timeout 5s;
+        send_timeout 10s;
 
-        # Failover behavior
-        proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
-        proxy_next_upstream_tries 2;
-        proxy_connect_timeout 2s;
-        proxy_read_timeout 5s;
-        proxy_send_timeout 5s;
+        # proxy settings similar to stage 2
+        location / {
+            proxy_pass http://backend_pool;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+
+            proxy_connect_timeout 2s;
+            proxy_send_timeout 3s;
+            proxy_read_timeout 5s;
+
+            proxy_next_upstream error timeout http_500 http_502 http_503 http_504;
+            proxy_next_upstream_tries 2;
+
+            proxy_pass_header X-App-Pool;
+            proxy_pass_header X-Release-Id;
+            proxy_buffering off;
+        }
+
+        location /healthz {
+            proxy_pass http://backend_pool/healthz;
+        }
     }
 }

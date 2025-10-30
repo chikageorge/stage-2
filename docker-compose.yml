@@ -1,39 +1,69 @@
+version: "3.8"
+
 services:
+  nginx:
+    image: nginx:stable
+    container_name: nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - nginx_logs:/var/log/nginx   # share logs with watcher
+    depends_on:
+      - app_blue
+      - app_green
+    networks:
+      - bg_net
+
   app_blue:
     image: ${BLUE_IMAGE}
     container_name: app_blue
     environment:
-      - APP_POOL=blue
       - RELEASE_ID=${RELEASE_ID_BLUE}
-      - PORT=${PORT}
-    expose:
-      - "${PORT}"
+      - APP_POOL=blue
+      - PORT=${PORT_BLUE:-8081}
     ports:
-      - "8081:${PORT}"
+      - "8081:8081"
+    networks:
+      - bg_net
 
   app_green:
     image: ${GREEN_IMAGE}
     container_name: app_green
     environment:
-      - APP_POOL=green
       - RELEASE_ID=${RELEASE_ID_GREEN}
-      - PORT=${PORT}
-    expose:
-      - "${PORT}"
+      - APP_POOL=green
+      - PORT=${PORT_GREEN:-8082}
     ports:
-      - "8082:${PORT}"
+      - "8082:8082"
+    networks:
+      - bg_net
 
-  nginx:
-    image: nginx:latest
-    container_name: nginx
+  alert_watcher:
+    build:
+      context: ./watcher
+      dockerfile: Dockerfile
+    container_name: alert_watcher
+    environment:
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+      - ERROR_RATE_THRESHOLD=${ERROR_RATE_THRESHOLD}
+      - WINDOW_SIZE=${WINDOW_SIZE}
+      - ALERT_COOLDOWN_SEC=${ALERT_COOLDOWN_SEC}
+      - ACTIVE_POOL=${ACTIVE_POOL}
+      - MAINTENANCE_MODE=${MAINTENANCE_MODE:-false}
+    volumes:
+      - nginx_logs:/var/log/nginx:ro
+    networks:
+      - bg_net
     depends_on:
+      - nginx
       - app_blue
       - app_green
-    ports:
-      - "8080:80"
-    volumes:
-      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template
-    environment:
-      ACTIVE_POOL: ${ACTIVE_POOL}
-      PORT: ${PORT}
-    restart: always
+    restart: unless-stopped
+
+networks:
+  bg_net:
+    driver: bridge
+
+volumes:
+  nginx_logs:
