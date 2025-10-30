@@ -1,6 +1,7 @@
 # 🧭 Runbook: Nginx Failover and Error-Rate Alerts
 
 ## 1. Alerts Overview
+![Alternative text for the image](/images/slaskalert.jpg "Slack Error bot")
 
 ### 🔴 Failover Detected
 **Meaning:** Traffic switched from one pool to another (e.g., Blue → Green).  
