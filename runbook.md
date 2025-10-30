@@ -24,7 +24,7 @@ This runbook explains alerts posted by the `alert_watcher` service and what oper
    ```
 3. If the failure is due to an ongoing chaos test, stop chaos by running:
    ```bash
-   curl -X POST "http://<HOST>:8081/chaos/stop"
+   curl -X POST "http://35.176.120.145:8081/chaos/stop"
    ```
 4. If the primary does not recover, keep the backup (green) active and escalate the incident to the engineering team with relevant logs and timestamps.
 
@@ -98,7 +98,7 @@ docker logs nginx --tail 200
 docker logs alert_watcher --tail 200
 
 # Stop chaos (if testing)
-curl -X POST "http://<HOST>:8081/chaos/stop"
+curl -X POST "http://35.176.120.145:8081/chaos/stop"
 
 # Toggle pools (manual intervention)
 ./switch_pool.sh green
